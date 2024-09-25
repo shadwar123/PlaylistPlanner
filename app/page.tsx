@@ -82,7 +82,7 @@ export default function Home() {
     <div className="container mx-auto p-4">
       <Card>
         <CardHeader>
-          <CardTitle>YouTube Playlist Analyzer</CardTitle>
+          <CardTitle>YouTube Playlist Task Planner</CardTitle>
           <CardDescription>
             Enter a YouTube playlist URL to analyze its videos
           </CardDescription>
