@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   Card,
   CardContent,
@@ -10,39 +11,30 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 
 interface VideoData {
   title: string;
   views: number;
   thumbnail: string;
-}
-
-interface GraphData {
-  name: string;
-  views: number;
+  vidLength: string;
 }
 
 export default function Home() {
   const [playlistUrl, setPlaylistUrl] = useState("");
   const [videoData, setVideoData] = useState<VideoData[]>([]);
-  const [graphData, setGraphData] = useState<GraphData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [totalLengthPlaylist, setTotalLengthPlaylist] = useState("");
+  const [data, setData] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [experienceLevel, setExperienceLevel] = useState<
+    "Beginner" | "Intermediate"
+  >("Beginner");
+  const [dailyLearningHours, setDailyLearningHours] = useState<number>(2); // Set a default value for daily learning hours
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    console.log("data 1");
+    setLoading(true);
+    console.log("data 1", isLoading);
     try {
       const response = await fetch("/api/scrape-playlist", {
         method: "POST",
@@ -57,14 +49,64 @@ export default function Home() {
       }
 
       const data = await response.json();
-      console.log("data vid", data);
       setVideoData(data.videoList);
-      setGraphData(data.graphData);
       setTotalLengthPlaylist(data.totalLengthPlaylist);
+      console.log("data ", data.videoList);
+      run(data.videoList); // Pass videoData to run
     } catch (error) {
       console.error("Error:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const run = async (videoData: VideoData[]): Promise<void> => {
+    // Prevent API call if it's already loading
+    if (loading) return;
+
+    setLoading(true); // Set loading to true before calling API
+
+    try {
+      const genAI = new GoogleGenerativeAI(
+        "AIzaSyBRgTnD2LFQzZxZNJoyrep3Eckl1yOdEHA"
+      );
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      // Construct the prompt using the playlist data, experience level, and daily learning hours
+      const prompt = `I have a YouTube playlist with multiple video titles and their durations. My experience level is ${experienceLevel}, and I plan to learn for ${dailyLearningHours} hours each day. 
+
+Analyze the difficulty of each video based on its title (easy or hard). For beginners, assume it will take longer to learn from harder videos. For intermediate learners, adjust the schedule to progress faster through easier topics.
+
+Here is the playlist data:
+${JSON.stringify(
+  videoData.map((video) => ({
+    title: video.title,
+    vidLength: video.vidLength,
+  })),
+  null,
+  2
+)}
+
+**Output the learning schedule only in the following format:**
+
+Day 1: [Video Title] — [Duration]  
+Day 2: [Video Title] — [Duration]  
+...  
+Day n: [Video Title] — [Duration]  
+
+Ensure the total viewing time does not exceed my daily learning hours and adjust the schedule according to my experience level.
+`;
+
+      const result = await model.generateContent(prompt);
+
+      // Assuming `result.response.text()` is the correct way to get the response
+      const generatedText: string = await result.response.text(); // Specify the type for generatedText
+      setData(generatedText);
+      console.log("Generated content:", generatedText);
+    } catch (error) {
+      console.error("Error generating content:", error);
+    } finally {
+      setLoading(false); // Reset loading state after the API call
     }
   };
 
@@ -88,17 +130,49 @@ export default function Home() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 flex flex-col">
             <Input
               type="url"
               placeholder="Enter YouTube playlist URL"
               value={playlistUrl}
               onChange={(e) => setPlaylistUrl(e.target.value)}
               required
+              // className="w-full mb-4" // Full width input with bottom margin
             />
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Analyzing..." : "Analyze Playlist"}
-            </Button>
+
+            <div className="flex justify-between items-center">
+              <div className="flex space-x-4">
+                <select
+                  value={experienceLevel}
+                  onChange={(e) =>
+                    setExperienceLevel(
+                      e.target.value as "Beginner" | "Intermediate"
+                    )
+                  }
+                  className="border p-2 rounded"
+                >
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                </select>
+                <select
+                  value={dailyLearningHours}
+                  onChange={(e) =>
+                    setDailyLearningHours(Number(e.target.value))
+                  }
+                  className="border p-2 rounded"
+                >
+                  <option value={1}>1 hour</option>
+                  <option value={2}>2 hours</option>
+                  <option value={3}>3 hours</option>
+                  <option value={4}>4 hours</option>
+                  <option value={5}>5 hours</option>
+                </select>
+              </div>
+
+              <Button type="submit" disabled={loading}>
+                {loading ? "Analyzing..." : "Analyze Playlist"}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -109,7 +183,7 @@ export default function Home() {
             <CardHeader>
               <CardTitle>Playlist Length: {totalLengthPlaylist}</CardTitle>
             </CardHeader>
-            
+
             <CardContent>
               <ul className="space-y-4">
                 {videoData.map((video, index) => (
@@ -127,6 +201,7 @@ export default function Home() {
                       <p className="text-sm text-gray-600">
                         {formatViews(video.views)} views
                       </p>
+                      <p>{video.vidLength}</p>
                     </div>
                   </li>
                 ))}
@@ -136,24 +211,20 @@ export default function Home() {
 
           <Card>
             <CardHeader>
-              <CardTitle>View Count Graph</CardTitle>
+              <CardTitle>Schedule Tasks</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={graphData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="views"
-                    stroke="#8884d8"
-                    activeDot={{ r: 8 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <div style={{ width: "100%", height: 400 }}>
+                {data.split("\n").map((line, index) => {
+                  // Trim whitespace and check if the line contains "Day"
+                  const trimmedLine = line.trim();
+                  return trimmedLine ? (
+                    <p key={index} style={{ margin: "0.5em 0" }}>
+                      {trimmedLine}
+                    </p>
+                  ) : null; // Return null if the line is empty
+                })}
+              </div>
             </CardContent>
           </Card>
         </div>
