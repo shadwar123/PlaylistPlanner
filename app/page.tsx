@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { AddEvent } from "./AddEvent";
 
 interface VideoData {
   title: string;
@@ -19,22 +20,30 @@ interface VideoData {
   vidLength: string;
 }
 
+
+
 export default function Home() {
   const [playlistUrl, setPlaylistUrl] = useState("");
   const [videoData, setVideoData] = useState<VideoData[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false);
   const [totalLengthPlaylist, setTotalLengthPlaylist] = useState("");
-  const [data, setData] = useState<string>("");
+  // const [data, setData] = useState<string>("");
+  const [arrayData, setArrayData] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [experienceLevel, setExperienceLevel] = useState<
     "Beginner" | "Intermediate"
   >("Beginner");
-  const [dailyLearningHours, setDailyLearningHours] = useState<number>(2); // Set a default value for daily learning hours
+  const [dailyLearningHours, setDailyLearningHours] = useState<number>(2); 
+
+  useEffect(() => {
+    console.log("Generated content:", arrayData[0]);
+  }, [arrayData]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    console.log("data 1", isLoading);
+    console.log("data 1", loading);
     try {
       const response = await fetch("/api/scrape-playlist", {
         method: "POST",
@@ -51,25 +60,25 @@ export default function Home() {
       const data = await response.json();
       setVideoData(data.videoList);
       setTotalLengthPlaylist(data.totalLengthPlaylist);
-      console.log("data ", data.videoList);
-      run(data.videoList); // Pass videoData to run
+      console.log("data videoList", data.videoList);
+
+      setTimeout(() => {
+        run(data.videoList);
+      }, 100);
     } catch (error) {
       console.error("Error:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const run = async (videoData: VideoData[]): Promise<void> => {
-    // Prevent API call if it's already loading
-    if (loading) return;
 
     setLoading(true); // Set loading to true before calling API
 
     try {
       const genAI = new GoogleGenerativeAI(
-        "AIzaSyBRgTnD2LFQzZxZNJoyrep3Eckl1yOdEHA"
+        process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""
       );
+  
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       // Construct the prompt using the playlist data, experience level, and daily learning hours
@@ -101,12 +110,20 @@ Ensure the total viewing time does not exceed my daily learning hours and adjust
 
       // Assuming `result.response.text()` is the correct way to get the response
       const generatedText: string = await result.response.text(); // Specify the type for generatedText
-      setData(generatedText);
-      console.log("Generated content:", generatedText);
+      console.log("direct data 1", generatedText);
+      // Process the generated text to extract lines starting with "Day"
+      setTimeout(() => {
+        const extractedData = generatedText
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.startsWith("Day")); // Only process lines starting with "Day"
+
+        console.log("direct data 22", extractedData);
+        setArrayData(extractedData); // Update state
+        setLoading(false); // Set loading to false when done
+      }, 100); // Process in chunks after slight delay
     } catch (error) {
       console.error("Error generating content:", error);
-    } finally {
-      setLoading(false); // Reset loading state after the API call
     }
   };
 
@@ -120,8 +137,10 @@ Ensure the total viewing time does not exceed my daily learning hours and adjust
     }
   };
 
+
   return (
     <div className="container mx-auto p-4">
+      
       <Card>
         <CardHeader>
           <CardTitle>YouTube Playlist Task Planner</CardTitle>
@@ -210,20 +229,22 @@ Ensure the total viewing time does not exceed my daily learning hours and adjust
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Schedule Tasks</CardTitle>
-            </CardHeader>
             <CardContent>
-              <div style={{ width: "100%", height: 400 }}>
-                {data.split("\n").map((line, index) => {
-                  // Trim whitespace and check if the line contains "Day"
-                  const trimmedLine = line.trim();
-                  return trimmedLine ? (
-                    <p key={index} style={{ margin: "0.5em 0" }}>
-                      {trimmedLine}
-                    </p>
-                  ) : null; // Return null if the line is empty
-                })}
+              <AddEvent eventListData={arrayData}/>
+              <div>
+                {loading ? ( // Show loading state while data is being fetched/processed
+                  <p>Loading...</p>
+                ) : arrayData.length > 0 ? (
+                  <div style={{ width: "100%", height: 400 }}>
+                    {arrayData.map((line, index) => (
+                      <p key={index} style={{ margin: "0.5em 0" }}>
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <p>No data found</p> // Handle case when no data is found
+                )}
               </div>
             </CardContent>
           </Card>
