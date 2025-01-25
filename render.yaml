@@ -1,9 +1,9 @@
 services:
-- type: web
-  name: your-app-name
-  runtime: node
-  buildCommand: npm install && npm run build
-  startCommand: npm run start
-  envVars:
-  - key: NODE_VERSION
-    value: 18.x
+  - type: web
+    name: playlist-analyzer
+    env: node
+    buildCommand: npm run prepare && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.x

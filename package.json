@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "postinstall": "npx playwright install"
-  },
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start",
+  "lint": "next lint",
+  "postinstall": "npx playwright install && npx playwright install-deps",
+  "prepare": "npx playwright install && npx playwright install-deps"
+},
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@radix-ui/react-icons": "^1.3.0",
